@@ -16,144 +16,78 @@
 
 package dev.gbln
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.sun.jna.ptr.PointerByReference
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
- * GBLN parser providing both synchronous and asynchronous parsing functions.
+ * GBLN parser API.
  *
- * Parses GBLN text format into Kotlin values with full type validation.
+ * Provides functions to parse GBLN strings and files into Kotlin values.
+ * Pattern follows bindings/python/src/gbln/parse.py exactly.
  */
-object Parser {
 
-    /**
-     * Parse GBLN string synchronously.
-     *
-     * @param input The GBLN string to parse
-     * @param config Optional configuration for parsing behaviour
-     * @return Parsed Kotlin value (Map, List, or primitive)
-     * @throws GblnError if parsing fails
-     */
-    fun parse(input: String, config: GblnConfig = GblnConfig.DEFAULT): Any? {
-        val ptr = FfiHelpers.parse(input)
+/**
+ * Parse GBLN string to Kotlin value.
+ *
+ * @param gblnString GBLN-formatted string
+ * @return Kotlin Map, List, or primitive value
+ * @throws GblnError if parsing fails
+ */
+fun parse(gblnString: String): Any? {
+    // Prepare output pointer
+    val valuePtr = PointerByReference()
 
-        return ManagedValue(ptr).use { managed ->
-            ValueConversion.fromGbln(managed.pointer())
-        }
+    // Call C function
+    val errorCode = lib.gbln_parse(gblnString, valuePtr)
+
+    // Check for errors
+    if (errorCode != GblnErrorCode.OK) {
+        throw GblnError("Parse failed with error code: $errorCode")
     }
 
-    /**
-     * Parse GBLN string asynchronously using coroutines.
-     *
-     * Performs parsing on the IO dispatcher to avoid blocking the calling thread.
-     *
-     * @param input The GBLN string to parse
-     * @param config Optional configuration for parsing behaviour
-     * @return Parsed Kotlin value (Map, List, or primitive)
-     * @throws GblnError if parsing fails
-     */
-    suspend fun parseAsync(input: String, config: GblnConfig = GblnConfig.DEFAULT): Any? {
-        return withContext(Dispatchers.IO) {
-            parse(input, config)
-        }
-    }
+    // Wrap in managed value for automatic cleanup
+    val managedValue = ManagedGblnValue(valuePtr.value)
 
-    /**
-     * Parse GBLN string and return Result type.
-     *
-     * @param input The GBLN string to parse
-     * @param config Optional configuration for parsing behaviour
-     * @return GblnResult.Success with value, or GblnResult.Failure with error
-     */
-    fun parseResult(input: String, config: GblnConfig = GblnConfig.DEFAULT): GblnResult<Any?> {
-        return runCatchingGbln {
-            parse(input, config)
-        }
-    }
-
-    /**
-     * Parse GBLN string asynchronously and return Result type.
-     *
-     * @param input The GBLN string to parse
-     * @param config Optional configuration for parsing behaviour
-     * @return GblnResult.Success with value, or GblnResult.Failure with error
-     */
-    suspend fun parseResultAsync(
-        input: String,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): GblnResult<Any?> {
-        return runCatchingGbln {
-            parseAsync(input, config)
-        }
-    }
-
-    /**
-     * Parse GBLN string and cast to specific type.
-     *
-     * @param T The expected type of the parsed value
-     * @param input The GBLN string to parse
-     * @param config Optional configuration for parsing behaviour
-     * @return Parsed value cast to type T
-     * @throws GblnError if parsing fails or type cast fails
-     */
-    inline fun <reified T> parseAs(
-        input: String,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): T {
-        val value = parse(input, config)
-        return value as? T ?: throw GblnError.ConversionError(
-            value?.let { it::class.simpleName } ?: "null",
-            T::class.simpleName ?: "Unknown"
-        )
-    }
-
-    /**
-     * Parse GBLN string asynchronously and cast to specific type.
-     *
-     * @param T The expected type of the parsed value
-     * @param input The GBLN string to parse
-     * @param config Optional configuration for parsing behaviour
-     * @return Parsed value cast to type T
-     * @throws GblnError if parsing fails or type cast fails
-     */
-    suspend inline fun <reified T> parseAsAsync(
-        input: String,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): T {
-        val value = parseAsync(input, config)
-        return value as? T ?: throw GblnError.ConversionError(
-            value?.let { it::class.simpleName } ?: "null",
-            T::class.simpleName ?: "Unknown"
-        )
-    }
+    // Convert to Kotlin
+    return gblnToKotlin(managedValue.ptr)
 }
 
 /**
- * Extension function to parse a String as GBLN.
+ * Parse GBLN file to Kotlin value.
+ *
+ * @param filePath Path to .gbln file
+ * @return Kotlin Map, List, or primitive value
+ * @throws GblnError if parsing fails
+ * @throws java.io.FileNotFoundException if file doesn't exist
+ * @throws java.io.IOException if file cannot be read
  */
-fun String.parseGbln(config: GblnConfig = GblnConfig.DEFAULT): Any? {
-    return Parser.parse(this, config)
-}
+fun parseFile(filePath: String): Any? = parseFile(Paths.get(filePath))
 
 /**
- * Extension function to parse a String as GBLN asynchronously.
+ * Parse GBLN file to Kotlin value.
+ *
+ * @param filePath Path to .gbln file
+ * @return Kotlin Map, List, or primitive value
+ * @throws GblnError if parsing fails
+ * @throws java.io.FileNotFoundException if file doesn't exist
+ * @throws java.io.IOException if file cannot be read
  */
-suspend fun String.parseGblnAsync(config: GblnConfig = GblnConfig.DEFAULT): Any? {
-    return Parser.parseAsync(this, config)
-}
+fun parseFile(filePath: Path): Any? {
+    if (!Files.exists(filePath)) {
+        throw java.io.FileNotFoundException("File not found: $filePath")
+    }
 
-/**
- * Extension function to parse a String as GBLN and cast to type T.
- */
-inline fun <reified T> String.parseGblnAs(config: GblnConfig = GblnConfig.DEFAULT): T {
-    return Parser.parseAs(this, config)
-}
+    if (!Files.isRegularFile(filePath)) {
+        throw java.io.IOException("Not a file: $filePath")
+    }
 
-/**
- * Extension function to parse a String as GBLN asynchronously and cast to type T.
- */
-suspend inline fun <reified T> String.parseGblnAsAsync(
-    config: GblnConfig = GblnConfig.DEFAULT
-): T {
-    return Parser.parseAsAsync(this, config)
+    val content = try {
+        Files.readString(filePath)
+    } catch (e: Exception) {
+        throw java.io.IOException("Failed to read file $filePath: ${e.message}", e)
+    }
+
+    return parse(content)
 }

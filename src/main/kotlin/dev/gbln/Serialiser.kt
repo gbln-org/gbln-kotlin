@@ -16,176 +16,49 @@
 
 package dev.gbln
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.sun.jna.Pointer
 
 /**
- * GBLN serialiser providing both synchronous and asynchronous serialisation.
+ * GBLN serialiser API.
  *
- * Converts Kotlin values to GBLN text format with configurable formatting.
+ * Provides functions to serialise Kotlin values to GBLN strings.
+ * Pattern follows bindings/python/src/gbln/serialise.py exactly.
  */
-object Serialiser {
 
-    /**
-     * Serialise Kotlin value to compact GBLN string.
-     *
-     * Produces minimal output without whitespace or formatting.
-     * Ideal for LLM contexts and network transmission.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Optional configuration for serialisation behaviour
-     * @return GBLN string representation
-     * @throws GblnError if serialisation fails
-     */
-    fun toString(value: Any?, config: GblnConfig = GblnConfig.DEFAULT): String {
-        return ValueConversion.toGbln(value).use { managed ->
-            FfiHelpers.serialise(managed.pointer())
-        }
+/**
+ * Serialise value to GBLN string.
+ *
+ * @param value Pointer to GblnValue (from parse)
+ * @param mini If true, use compact format (no whitespace). Default: true
+ * @return GBLN-formatted string
+ * @throws GblnError if serialisation fails
+ */
+fun toString(value: Pointer, mini: Boolean = true): String {
+    // Call appropriate C function
+    val cStrPtr = if (mini) {
+        lib.gbln_to_string(value)
+    } else {
+        lib.gbln_to_string_pretty(value)
     }
 
-    /**
-     * Serialise Kotlin value to pretty-printed GBLN string.
-     *
-     * Produces formatted output with indentation and newlines for readability.
-     * Ideal for configuration files and human-readable output.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Optional configuration for serialisation behaviour
-     * @return Pretty-printed GBLN string representation
-     * @throws GblnError if serialisation fails
-     */
-    fun toPrettyString(value: Any?, config: GblnConfig = GblnConfig.DEFAULT): String {
-        return ValueConversion.toGbln(value).use { managed ->
-            FfiHelpers.serialisePretty(managed.pointer())
-        }
+    if (cStrPtr == null || Pointer.nativeValue(cStrPtr) == 0L) {
+        throw GblnError("Serialisation failed (null pointer returned)")
     }
 
-    /**
-     * Serialise Kotlin value to GBLN string asynchronously.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Optional configuration for serialisation behaviour
-     * @return GBLN string representation
-     * @throws GblnError if serialisation fails
-     */
-    suspend fun toStringAsync(
-        value: Any?,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): String {
-        return withContext(Dispatchers.IO) {
-            toString(value, config)
-        }
-    }
-
-    /**
-     * Serialise Kotlin value to pretty-printed GBLN string asynchronously.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Optional configuration for serialisation behaviour
-     * @return Pretty-printed GBLN string representation
-     * @throws GblnError if serialisation fails
-     */
-    suspend fun toPrettyStringAsync(
-        value: Any?,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): String {
-        return withContext(Dispatchers.IO) {
-            toPrettyString(value, config)
-        }
-    }
-
-    /**
-     * Serialise Kotlin value and return Result type.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Optional configuration for serialisation behaviour
-     * @return GblnResult.Success with string, or GblnResult.Failure with error
-     */
-    fun toStringResult(
-        value: Any?,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): GblnResult<String> {
-        return runCatchingGbln {
-            toString(value, config)
-        }
-    }
-
-    /**
-     * Serialise Kotlin value to pretty string and return Result type.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Optional configuration for serialisation behaviour
-     * @return GblnResult.Success with string, or GblnResult.Failure with error
-     */
-    fun toPrettyStringResult(
-        value: Any?,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): GblnResult<String> {
-        return runCatchingGbln {
-            toPrettyString(value, config)
-        }
-    }
-
-    /**
-     * Serialise based on config.prettyPrint setting.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Configuration determining output format
-     * @return GBLN string representation (compact or pretty)
-     * @throws GblnError if serialisation fails
-     */
-    fun serialise(value: Any?, config: GblnConfig = GblnConfig.DEFAULT): String {
-        return if (config.prettyPrint) {
-            toPrettyString(value, config)
-        } else {
-            toString(value, config)
-        }
-    }
-
-    /**
-     * Serialise based on config.prettyPrint setting asynchronously.
-     *
-     * @param value The Kotlin value to serialise
-     * @param config Configuration determining output format
-     * @return GBLN string representation (compact or pretty)
-     * @throws GblnError if serialisation fails
-     */
-    suspend fun serialiseAsync(
-        value: Any?,
-        config: GblnConfig = GblnConfig.DEFAULT
-    ): String {
-        return if (config.prettyPrint) {
-            toPrettyStringAsync(value, config)
-        } else {
-            toStringAsync(value, config)
-        }
+    // Convert to Kotlin string
+    return try {
+        cStrPtr.getString(0, "UTF-8")
+    } finally {
+        // Free C string
+        com.sun.jna.Native.free(Pointer.nativeValue(cStrPtr))
     }
 }
 
 /**
- * Extension function to convert any Kotlin value to compact GBLN string.
+ * Serialise value to pretty-printed GBLN string.
+ *
+ * @param value Pointer to GblnValue (from parse)
+ * @return Pretty-printed GBLN string
+ * @throws GblnError if serialisation fails
  */
-fun Any?.toGblnString(config: GblnConfig = GblnConfig.DEFAULT): String {
-    return Serialiser.toString(this, config)
-}
-
-/**
- * Extension function to convert any Kotlin value to pretty GBLN string.
- */
-fun Any?.toGblnPrettyString(config: GblnConfig = GblnConfig.DEFAULT): String {
-    return Serialiser.toPrettyString(this, config)
-}
-
-/**
- * Extension function to convert any Kotlin value to GBLN string asynchronously.
- */
-suspend fun Any?.toGblnStringAsync(config: GblnConfig = GblnConfig.DEFAULT): String {
-    return Serialiser.toStringAsync(this, config)
-}
-
-/**
- * Extension function to convert any Kotlin value to pretty GBLN string asynchronously.
- */
-suspend fun Any?.toGblnPrettyStringAsync(config: GblnConfig = GblnConfig.DEFAULT): String {
-    return Serialiser.toPrettyStringAsync(this, config)
-}
+fun toStringPretty(value: Pointer): String = toString(value, mini = false)
