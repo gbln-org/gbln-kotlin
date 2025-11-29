@@ -1,0 +1,8 @@
+:| Simple GBLN test file with basic types
+user{
+    id<u32>(12345)
+    name<s64>(Alice Johnson)
+    age<i8>(25)
+    active<b>(t)
+    score<f32>(98.5)
+}

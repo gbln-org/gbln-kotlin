@@ -1,0 +1,4 @@
+:| Invalid GBLN - integer out of range
+user{
+    age<i8>(999)
+}

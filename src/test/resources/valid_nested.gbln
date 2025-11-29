@@ -1,0 +1,13 @@
+:| Nested GBLN structure
+response{
+    status<u16>(200)
+    message<s64>(Success)
+    data{
+        users[
+            {id<u32>(1) name<s32>(Alice) age<i8>(25)}
+            {id<u32>(2) name<s32>(Bob) age<i8>(30)}
+            {id<u32>(3) name<s32>(Charlie) age<i8>(35)}
+        ]
+        total<u16>(3)
+    }
+}

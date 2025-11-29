@@ -1,0 +1,3 @@
+:| Invalid GBLN - missing closing brace
+user{
+    name<s32>(Alice)
