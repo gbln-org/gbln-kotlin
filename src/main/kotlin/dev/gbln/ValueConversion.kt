@@ -30,55 +30,67 @@ internal object ValueConversion {
      */
     fun toGbln(value: Any?): ManagedValue {
         val ptr = when (value) {
-            null -> FfiWrapper.valueNewNull()
+            null -> FfiWrapper.gblnValueNewNull()
 
-            is Boolean -> FfiWrapper.valueNewBool(value)
+            is Boolean -> FfiWrapper.gblnValueNewBool(value)
 
             // Integer types - auto-select smallest type
-            is Byte -> FfiWrapper.valueNewI8(value)
-            is Short -> FfiWrapper.valueNewI16(value)
+            is Byte -> FfiWrapper.gblnValueNewI8(value)
+            is Short -> FfiWrapper.gblnValueNewI16(value)
             is Int -> autoSelectIntType(value.toLong())
             is Long -> autoSelectIntType(value)
 
             // Unsigned integers (represented as next larger signed type in Kotlin)
-            is UByte -> FfiWrapper.valueNewU8(value.toShort())
-            is UShort -> FfiWrapper.valueNewU16(value.toInt())
-            is UInt -> FfiWrapper.valueNewU32(value.toLong())
-            is ULong -> FfiWrapper.valueNewU64(value.toLong())
+            is UByte -> FfiWrapper.gblnValueNewU8(value.toShort())
+            is UShort -> FfiWrapper.gblnValueNewU16(value.toInt())
+            is UInt -> FfiWrapper.gblnValueNewU32(value.toLong())
+            is ULong -> FfiWrapper.gblnValueNewU64(value.toLong())
 
             // Floating-point
-            is Float -> FfiWrapper.valueNewF32(value)
-            is Double -> FfiWrapper.valueNewF64(value)
+            is Float -> FfiWrapper.gblnValueNewF32(value)
+            is Double -> FfiWrapper.gblnValueNewF64(value)
 
             // String - auto-select max length
             is String -> autoSelectStringType(value)
 
             // Map to GBLN object
             is Map<*, *> -> {
-                val objPtr = FfiWrapper.valueNewObject()
+                val objPtr = FfiWrapper.gblnValueNewObject()
                 value.forEach { (k, v) ->
                     val key = k.toString()
                     val valuePtr = toGbln(v).pointer()
-                    FfiWrapper.objectSet(objPtr, key, valuePtr)
+                    val errorCode = FfiWrapper.gblnObjectSet(objPtr, key, valuePtr)
+                    if (errorCode != FfiWrapper.ErrorCode.OK) {
+                        val errorMsg = FfiWrapper.gblnErrorMessage(errorCode)
+                        throw GblnError.SerialiseError("Failed to set object key '$key': $errorMsg")
+                    }
                 }
                 objPtr
             }
 
             // List/Array to GBLN array
             is List<*> -> {
-                val arrayPtr = FfiWrapper.valueNewArray()
+                val arrayPtr = FfiWrapper.gblnValueNewArray()
                 value.forEach { element ->
                     val elementPtr = toGbln(element).pointer()
-                    FfiWrapper.arrayPush(arrayPtr, elementPtr)
+                    val errorCode = FfiWrapper.gblnArrayPush(arrayPtr, elementPtr)
+                    if (errorCode != FfiWrapper.ErrorCode.OK) {
+                        val errorMsg = FfiWrapper.gblnErrorMessage(errorCode)
+                        throw GblnError.SerialiseError("Failed to push array element: $errorMsg")
+                    }
                 }
                 arrayPtr
             }
 
             is Array<*> -> {
-                val arrayPtr = FfiWrapper.valueNewArray()
+                val arrayPtr = FfiWrapper.gblnValueNewArray()
                 value.forEach { element ->
                     val elementPtr = toGbln(element).pointer()
-                    FfiWrapper.arrayPush(arrayPtr, elementPtr)
+                    val errorCode = FfiWrapper.gblnArrayPush(arrayPtr, elementPtr)
+                    if (errorCode != FfiWrapper.ErrorCode.OK) {
+                        val errorMsg = FfiWrapper.gblnErrorMessage(errorCode)
+                        throw GblnError.SerialiseError("Failed to push array element: $errorMsg")
+                    }
                 }
                 arrayPtr
             }
@@ -89,7 +101,11 @@ internal object ValueConversion {
             )
         }
 
-        return ManagedValue(ptr.checkNotNull("Value conversion"))
+        if (ptr == 0L) {
+            throw GblnError.NullPointer("Failed to create GBLN value")
+        }
+
+        return ManagedValue(ptr)
     }
 
     /**
@@ -99,47 +115,140 @@ internal object ValueConversion {
     fun fromGbln(ptr: Long): Any? {
         if (ptr == 0L) return null
 
-        return when {
-            FfiWrapper.valueIsNull(ptr) -> null
-            FfiWrapper.valueIsBool(ptr) -> FfiWrapper.valueAsBool(ptr)
+        val valueType = FfiWrapper.gblnValueType(ptr)
+
+        return when (valueType) {
+            FfiWrapper.ValueType.NULL -> null
+
+            FfiWrapper.ValueType.BOOL -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsBool(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get boolean value")
+                }
+                result
+            }
 
             // Signed integers
-            FfiWrapper.valueIsI8(ptr) -> FfiWrapper.valueAsI8(ptr)
-            FfiWrapper.valueIsI16(ptr) -> FfiWrapper.valueAsI16(ptr)
-            FfiWrapper.valueIsI32(ptr) -> FfiWrapper.valueAsI32(ptr)
-            FfiWrapper.valueIsI64(ptr) -> FfiWrapper.valueAsI64(ptr)
+            FfiWrapper.ValueType.I8 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsI8(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get i8 value")
+                }
+                result
+            }
+
+            FfiWrapper.ValueType.I16 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsI16(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get i16 value")
+                }
+                result
+            }
+
+            FfiWrapper.ValueType.I32 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsI32(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get i32 value")
+                }
+                result
+            }
+
+            FfiWrapper.ValueType.I64 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsI64(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get i64 value")
+                }
+                result
+            }
 
             // Unsigned integers (return as next larger signed type)
-            FfiWrapper.valueIsU8(ptr) -> FfiWrapper.valueAsU8(ptr)
-            FfiWrapper.valueIsU16(ptr) -> FfiWrapper.valueAsU16(ptr)
-            FfiWrapper.valueIsU32(ptr) -> FfiWrapper.valueAsU32(ptr)
-            FfiWrapper.valueIsU64(ptr) -> FfiWrapper.valueAsU64(ptr)
+            FfiWrapper.ValueType.U8 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsU8(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get u8 value")
+                }
+                result
+            }
+
+            FfiWrapper.ValueType.U16 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsU16(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get u16 value")
+                }
+                result
+            }
+
+            FfiWrapper.ValueType.U32 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsU32(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get u32 value")
+                }
+                result
+            }
+
+            FfiWrapper.ValueType.U64 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsU64(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get u64 value")
+                }
+                result
+            }
 
             // Floating-point
-            FfiWrapper.valueIsF32(ptr) -> FfiWrapper.valueAsF32(ptr)
-            FfiWrapper.valueIsF64(ptr) -> FfiWrapper.valueAsF64(ptr)
+            FfiWrapper.ValueType.F32 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsF32(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get f32 value")
+                }
+                result
+            }
+
+            FfiWrapper.ValueType.F64 -> {
+                val ok = BooleanArray(1)
+                val result = FfiWrapper.gblnValueAsF64(ptr, ok)
+                if (!ok[0]) {
+                    throw GblnError.TypeError("Failed to get f64 value")
+                }
+                result
+            }
 
             // String
-            FfiWrapper.valueIsString(ptr) -> FfiWrapper.valueAsString(ptr)
+            FfiWrapper.ValueType.STRING -> {
+                FfiHelpers.getString(ptr)
+            }
 
             // Object - convert to Map
-            FfiWrapper.valueIsObject(ptr) -> {
-                val keys = FfiWrapper.objectKeys(ptr)
+            FfiWrapper.ValueType.OBJECT -> {
+                val keys = FfiWrapper.gblnObjectKeys(ptr)
                 val map = mutableMapOf<String, Any?>()
                 keys.forEach { key ->
-                    val valuePtr = FfiWrapper.objectGet(ptr, key)
-                    map[key] = fromGbln(valuePtr)
+                    val valuePtr = FfiWrapper.gblnObjectGet(ptr, key)
+                    if (valuePtr != 0L) {
+                        map[key] = fromGbln(valuePtr)
+                    }
                 }
                 map
             }
 
             // Array - convert to List
-            FfiWrapper.valueIsArray(ptr) -> {
-                val len = FfiWrapper.arrayLen(ptr)
+            FfiWrapper.ValueType.ARRAY -> {
+                val len = FfiWrapper.gblnArrayLen(ptr)
                 val list = mutableListOf<Any?>()
                 for (i in 0 until len) {
-                    val elementPtr = FfiWrapper.arrayGet(ptr, i)
-                    list.add(fromGbln(elementPtr))
+                    val elementPtr = FfiWrapper.gblnArrayGet(ptr, i)
+                    if (elementPtr != 0L) {
+                        list.add(fromGbln(elementPtr))
+                    }
                 }
                 list
             }
@@ -154,15 +263,15 @@ internal object ValueConversion {
     private fun autoSelectIntType(value: Long): Long {
         return when {
             value in Byte.MIN_VALUE..Byte.MAX_VALUE ->
-                FfiWrapper.valueNewI8(value.toByte())
+                FfiWrapper.gblnValueNewI8(value.toByte())
 
             value in Short.MIN_VALUE..Short.MAX_VALUE ->
-                FfiWrapper.valueNewI16(value.toShort())
+                FfiWrapper.gblnValueNewI16(value.toShort())
 
             value in Int.MIN_VALUE..Int.MAX_VALUE ->
-                FfiWrapper.valueNewI32(value.toInt())
+                FfiWrapper.gblnValueNewI32(value.toInt())
 
-            else -> FfiWrapper.valueNewI64(value)
+            else -> FfiWrapper.gblnValueNewI64(value)
         }
     }
 
@@ -187,7 +296,7 @@ internal object ValueConversion {
             else -> throw GblnError.StringTooLong(charCount, 1024, value)
         }
 
-        return FfiWrapper.valueNewString(value, maxLen)
+        return FfiWrapper.gblnValueNewString(value, maxLen)
     }
 }
 

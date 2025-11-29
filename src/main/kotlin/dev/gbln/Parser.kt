@@ -35,12 +35,7 @@ object Parser {
      * @throws GblnError if parsing fails
      */
     fun parse(input: String, config: GblnConfig = GblnConfig.DEFAULT): Any? {
-        val ptr = FfiWrapper.parse(input)
-
-        if (ptr == 0L) {
-            val errorMsg = FfiWrapper.getErrorMessage() ?: "Unknown parse error"
-            throw GblnError.ParseError(errorMsg)
-        }
+        val ptr = FfiHelpers.parse(input)
 
         return ManagedValue(ptr).use { managed ->
             ValueConversion.fromGbln(managed.pointer())

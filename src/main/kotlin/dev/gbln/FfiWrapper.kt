@@ -16,6 +16,8 @@
 
 package dev.gbln
 
+import java.io.File
+
 /**
  * Low-level FFI wrapper for GBLN native library via JNI.
  *
@@ -29,127 +31,198 @@ package dev.gbln
 internal object FfiWrapper {
 
     init {
-        // Load the native library
-        System.loadLibrary("gbln_jni")
+        // Detect platform and load appropriate library
+        val osName = System.getProperty("os.name").lowercase()
+        val osArch = System.getProperty("os.arch").lowercase()
+
+        val platform = when {
+            osName.contains("mac") && osArch.contains("aarch64") -> "macos-arm64"
+            osName.contains("mac") && osArch.contains("x86_64") -> "macos-x64"
+            osName.contains("linux") && osArch.contains("aarch64") -> "linux-arm64"
+            osName.contains("linux") && osArch.contains("x86_64") -> "linux-x64"
+            osName.contains("windows") && osArch.contains("aarch64") -> "windows-arm64"
+            osName.contains("windows") && osArch.contains("amd64") -> "windows-x64"
+            else -> throw UnsupportedOperationException("Unsupported platform: $osName $osArch")
+        }
+
+        // Load the native JNI library
+        val libraryName = when {
+            osName.contains("windows") -> "gbln_jni.dll"
+            osName.contains("mac") -> "libgbln_jni.dylib"
+            else -> "libgbln_jni.so"
+        }
+
+        // Try to load from system library path first
+        try {
+            System.loadLibrary("gbln_jni")
+        } catch (e: UnsatisfiedLinkError) {
+            // Fall back to loading from local build directory
+            val projectRoot = File("").absolutePath
+            val libraryPath = "$projectRoot/build/libs/$platform/$libraryName"
+            System.load(libraryPath)
+        }
+    }
+
+    // Error codes (must match GblnErrorCode enum from C FFI)
+    object ErrorCode {
+        const val OK = 0
+        const val PARSE_ERROR = 1
+        const val TYPE_MISMATCH = 2
+        const val OUT_OF_RANGE = 3
+        const val INVALID_UTF8 = 4
+        const val NULL_POINTER = 5
+        const val KEY_NOT_FOUND = 6
+        const val INDEX_OUT_OF_BOUNDS = 7
+        const val MEMORY_ERROR = 8
+    }
+
+    // Value types (must match GblnValueType enum from C FFI)
+    object ValueType {
+        const val I8 = 0
+        const val I16 = 1
+        const val I32 = 2
+        const val I64 = 3
+        const val U8 = 4
+        const val U16 = 5
+        const val U32 = 6
+        const val U64 = 7
+        const val F32 = 8
+        const val F64 = 9
+        const val BOOL = 10
+        const val STRING = 11
+        const val NULL = 12
+        const val OBJECT = 13
+        const val ARRAY = 14
     }
 
     // Parser functions
 
     /**
      * Parse GBLN string into a value pointer.
-     * Returns 0 if parsing fails. Call getErrorMessage() for details.
+     * Returns error code. On success (0), outValue[0] contains the pointer.
      */
-    external fun parse(input: String): Long
+    external fun gblnParse(input: String, outValue: LongArray): Int
+
+    /**
+     * Parse GBLN file into a value pointer.
+     * Returns error code. On success (0), outValue[0] contains the pointer.
+     */
+    external fun gblnParseFile(path: String, outValue: LongArray): Int
 
     // Serialiser functions
 
     /**
      * Convert value to compact GBLN string.
-     * Caller must free the returned string using stringFree().
+     * Returns Java string directly (memory managed by JNI).
      */
-    external fun toString(valuePtr: Long): String?
+    external fun gblnToString(valuePtr: Long): String?
 
     /**
      * Convert value to human-readable GBLN string with formatting.
-     * Caller must free the returned string using stringFree().
+     * Returns Java string directly (memory managed by JNI).
      */
-    external fun toPrettyString(valuePtr: Long): String?
+    external fun gblnToStringPretty(valuePtr: Long): String?
 
-    // Value creation functions
+    /**
+     * Write value to GBLN file.
+     * Returns error code (0 = success).
+     */
+    external fun gblnWriteFile(path: String, valuePtr: Long): Int
 
-    external fun valueNewI8(value: Byte): Long
-    external fun valueNewI16(value: Short): Long
-    external fun valueNewI32(value: Int): Long
-    external fun valueNewI64(value: Long): Long
-    external fun valueNewU8(value: Short): Long
-    external fun valueNewU16(value: Int): Long
-    external fun valueNewU32(value: Long): Long
-    external fun valueNewU64(value: Long): Long
-    external fun valueNewF32(value: Float): Long
-    external fun valueNewF64(value: Double): Long
-    external fun valueNewBool(value: Boolean): Long
-    external fun valueNewString(value: String, maxLen: Int): Long
-    external fun valueNewNull(): Long
-    external fun valueNewObject(): Long
-    external fun valueNewArray(): Long
+    // Value type query
 
-    // Value type checking functions
+    /**
+     * Get the type of a value.
+     * Returns ValueType constant.
+     */
+    external fun gblnValueType(valuePtr: Long): Int
 
-    external fun valueIsI8(valuePtr: Long): Boolean
-    external fun valueIsI16(valuePtr: Long): Boolean
-    external fun valueIsI32(valuePtr: Long): Boolean
-    external fun valueIsI64(valuePtr: Long): Boolean
-    external fun valueIsU8(valuePtr: Long): Boolean
-    external fun valueIsU16(valuePtr: Long): Boolean
-    external fun valueIsU32(valuePtr: Long): Boolean
-    external fun valueIsU64(valuePtr: Long): Boolean
-    external fun valueIsF32(valuePtr: Long): Boolean
-    external fun valueIsF64(valuePtr: Long): Boolean
-    external fun valueIsBool(valuePtr: Long): Boolean
-    external fun valueIsString(valuePtr: Long): Boolean
-    external fun valueIsNull(valuePtr: Long): Boolean
-    external fun valueIsObject(valuePtr: Long): Boolean
-    external fun valueIsArray(valuePtr: Long): Boolean
+    // Value getter functions (with ok flag)
 
-    // Value getter functions
+    external fun gblnValueAsI8(valuePtr: Long, ok: BooleanArray): Byte
+    external fun gblnValueAsI16(valuePtr: Long, ok: BooleanArray): Short
+    external fun gblnValueAsI32(valuePtr: Long, ok: BooleanArray): Int
+    external fun gblnValueAsI64(valuePtr: Long, ok: BooleanArray): Long
+    external fun gblnValueAsU8(valuePtr: Long, ok: BooleanArray): Short
+    external fun gblnValueAsU16(valuePtr: Long, ok: BooleanArray): Int
+    external fun gblnValueAsU32(valuePtr: Long, ok: BooleanArray): Long
+    external fun gblnValueAsU64(valuePtr: Long, ok: BooleanArray): Long
+    external fun gblnValueAsF32(valuePtr: Long, ok: BooleanArray): Float
+    external fun gblnValueAsF64(valuePtr: Long, ok: BooleanArray): Double
+    external fun gblnValueAsBool(valuePtr: Long, ok: BooleanArray): Boolean
 
-    external fun valueAsI8(valuePtr: Long): Byte
-    external fun valueAsI16(valuePtr: Long): Short
-    external fun valueAsI32(valuePtr: Long): Int
-    external fun valueAsI64(valuePtr: Long): Long
-    external fun valueAsU8(valuePtr: Long): Short
-    external fun valueAsU16(valuePtr: Long): Int
-    external fun valueAsU32(valuePtr: Long): Long
-    external fun valueAsU64(valuePtr: Long): Long
-    external fun valueAsF32(valuePtr: Long): Float
-    external fun valueAsF64(valuePtr: Long): Double
-    external fun valueAsBool(valuePtr: Long): Boolean
-    external fun valueAsString(valuePtr: Long): String?
+    /**
+     * Get string value from a value pointer.
+     * Returns Java string directly (memory managed by JNI).
+     * Sets ok[0] to true if successful, false otherwise.
+     */
+    external fun gblnValueAsString(valuePtr: Long, ok: BooleanArray): String?
 
     // Object operations
 
     /**
-     * Set key-value pair in object.
-     * The value pointer is consumed by the object (do not free separately).
+     * Get value from object by key.
+     * Returns pointer to value (owned by object, do not free).
+     * Returns 0 if key not found.
      */
-    external fun objectSet(objectPtr: Long, key: String, valuePtr: Long)
+    external fun gblnObjectGet(objectPtr: Long, key: String): Long
 
     /**
-     * Get value from object by key.
-     * Returns 0 if key not found.
-     * Returned pointer is owned by the object (do not free).
+     * Set key-value pair in object.
+     * The value pointer is consumed by the object (do not free separately).
+     * Returns error code (0 = success).
      */
-    external fun objectGet(objectPtr: Long, key: String): Long
+    external fun gblnObjectSet(objectPtr: Long, key: String, valuePtr: Long): Int
 
     /**
      * Get number of key-value pairs in object.
      */
-    external fun objectLen(objectPtr: Long): Int
+    external fun gblnObjectLen(objectPtr: Long): Int
 
     /**
      * Get all keys in object.
+     * Returns array of key strings.
      */
-    external fun objectKeys(objectPtr: Long): Array<String>
+    external fun gblnObjectKeys(objectPtr: Long): Array<String>
 
     // Array operations
 
     /**
-     * Push value to end of array.
-     * The value pointer is consumed by the array (do not free separately).
+     * Get value from array by index.
+     * Returns pointer to value (owned by array, do not free).
+     * Returns 0 if index out of bounds.
      */
-    external fun arrayPush(arrayPtr: Long, valuePtr: Long)
+    external fun gblnArrayGet(arrayPtr: Long, index: Int): Long
 
     /**
-     * Get value from array by index.
-     * Returns 0 if index out of bounds.
-     * Returned pointer is owned by the array (do not free).
+     * Push value to end of array.
+     * The value pointer is consumed by the array (do not free separately).
+     * Returns error code (0 = success).
      */
-    external fun arrayGet(arrayPtr: Long, index: Int): Long
+    external fun gblnArrayPush(arrayPtr: Long, valuePtr: Long): Int
 
     /**
      * Get number of elements in array.
      */
-    external fun arrayLen(arrayPtr: Long): Int
+    external fun gblnArrayLen(arrayPtr: Long): Int
+
+    // Value creation functions
+
+    external fun gblnValueNewI8(value: Byte): Long
+    external fun gblnValueNewI16(value: Short): Long
+    external fun gblnValueNewI32(value: Int): Long
+    external fun gblnValueNewI64(value: Long): Long
+    external fun gblnValueNewU8(value: Short): Long
+    external fun gblnValueNewU16(value: Int): Long
+    external fun gblnValueNewU32(value: Long): Long
+    external fun gblnValueNewU64(value: Long): Long
+    external fun gblnValueNewF32(value: Float): Long
+    external fun gblnValueNewF64(value: Double): Long
+    external fun gblnValueNewBool(value: Boolean): Long
+    external fun gblnValueNewString(value: String, maxLen: Int): Long
+    external fun gblnValueNewNull(): Long
+    external fun gblnValueNewObject(): Long
+    external fun gblnValueNewArray(): Long
 
     // Memory management
 
@@ -157,40 +230,131 @@ internal object FfiWrapper {
      * Free a value pointer and all its contents.
      * Must be called exactly once for each created/parsed value.
      */
-    external fun valueFree(valuePtr: Long)
+    external fun gblnValueFree(valuePtr: Long)
 
     /**
-     * Free a string pointer returned from toString/toPrettyString.
+     * Free a string pointer returned from serialisation or gblnValueAsString.
      */
-    external fun stringFree(stringPtr: Long)
-
-    // Error handling
+    external fun gblnStringFree(stringPtr: Long)
 
     /**
-     * Get the last error message from the native library.
+     * Get error message for an error code.
+     * Returns human-readable error description.
      */
-    external fun getErrorMessage(): String?
+    external fun gblnErrorMessage(errorCode: Int): String
+}
 
-    // I/O operations
+/**
+ * Helper functions for working with the FFI layer.
+ */
+internal object FfiHelpers {
 
     /**
-     * Parse GBLN file into a value pointer.
-     * Returns 0 if parsing fails. Call getErrorMessage() for details.
+     * Parse GBLN string and return value pointer.
+     * Throws GblnError on failure.
      */
-    external fun parseFile(path: String): Long
+    fun parse(input: String): Long {
+        val outValue = LongArray(1)
+        val errorCode = FfiWrapper.gblnParse(input, outValue)
+
+        if (errorCode != FfiWrapper.ErrorCode.OK) {
+            val errorMsg = FfiWrapper.gblnErrorMessage(errorCode)
+            throw GblnError.ParseError(errorMsg)
+        }
+
+        return outValue[0]
+    }
 
     /**
-     * Write value to GBLN file.
-     * Returns 0 on success, non-zero on error.
+     * Parse GBLN file and return value pointer.
+     * Throws GblnError on failure.
      */
-    external fun writeFile(path: String, valuePtr: Long): Int
+    fun parseFile(path: String): Long {
+        val outValue = LongArray(1)
+        val errorCode = FfiWrapper.gblnParseFile(path, outValue)
+
+        if (errorCode != FfiWrapper.ErrorCode.OK) {
+            val errorMsg = FfiWrapper.gblnErrorMessage(errorCode)
+            throw GblnError.ParseError("Failed to parse file '$path': $errorMsg")
+        }
+
+        return outValue[0]
+    }
+
+    /**
+     * Serialise value to GBLN string.
+     * Returns Kotlin String (memory managed by JNI).
+     */
+    fun serialise(valuePtr: Long): String {
+        val result = FfiWrapper.gblnToString(valuePtr)
+        return result ?: throw GblnError.SerialiseError("Failed to serialise value")
+    }
+
+    /**
+     * Serialise value to pretty GBLN string.
+     * Returns Kotlin String (memory managed by JNI).
+     */
+    fun serialisePretty(valuePtr: Long): String {
+        val result = FfiWrapper.gblnToStringPretty(valuePtr)
+        return result ?: throw GblnError.SerialiseError("Failed to serialise value to pretty format")
+    }
+
+    /**
+     * Get string value from a value pointer.
+     * Throws GblnError if not a string type.
+     */
+    fun getString(valuePtr: Long): String {
+        val ok = BooleanArray(1)
+        val result = FfiWrapper.gblnValueAsString(valuePtr, ok)
+
+        if (!ok[0] || result == null) {
+            throw GblnError.TypeError("Failed to get string value")
+        }
+
+        return result
+    }
+
+    /**
+     * Check if value type matches expected type.
+     * Throws TypeError if mismatch.
+     */
+    fun checkType(valuePtr: Long, expectedType: Int) {
+        val actualType = FfiWrapper.gblnValueType(valuePtr)
+        if (actualType != expectedType) {
+            throw GblnError.TypeError(
+                "Expected type ${typeNameFor(expectedType)}, got ${typeNameFor(actualType)}"
+            )
+        }
+    }
+
+    /**
+     * Get human-readable name for value type constant.
+     */
+    private fun typeNameFor(typeCode: Int): String = when (typeCode) {
+        FfiWrapper.ValueType.I8 -> "i8"
+        FfiWrapper.ValueType.I16 -> "i16"
+        FfiWrapper.ValueType.I32 -> "i32"
+        FfiWrapper.ValueType.I64 -> "i64"
+        FfiWrapper.ValueType.U8 -> "u8"
+        FfiWrapper.ValueType.U16 -> "u16"
+        FfiWrapper.ValueType.U32 -> "u32"
+        FfiWrapper.ValueType.U64 -> "u64"
+        FfiWrapper.ValueType.F32 -> "f32"
+        FfiWrapper.ValueType.F64 -> "f64"
+        FfiWrapper.ValueType.BOOL -> "bool"
+        FfiWrapper.ValueType.STRING -> "string"
+        FfiWrapper.ValueType.NULL -> "null"
+        FfiWrapper.ValueType.OBJECT -> "object"
+        FfiWrapper.ValueType.ARRAY -> "array"
+        else -> "unknown($typeCode)"
+    }
 }
 
 /**
  * RAII wrapper for native value pointers.
  *
- * Automatically frees the native pointer when the object is garbage collected.
- * This prevents memory leaks from forgotten valueFree() calls.
+ * Automatically frees the native pointer when the object is closed.
+ * This prevents memory leaks from forgotten gblnValueFree() calls.
  */
 internal class ManagedValue(private val ptr: Long) : AutoCloseable {
 
@@ -210,7 +374,7 @@ internal class ManagedValue(private val ptr: Long) : AutoCloseable {
      */
     override fun close() {
         if (ptr != 0L) {
-            FfiWrapper.valueFree(ptr)
+            FfiWrapper.gblnValueFree(ptr)
         }
     }
 
@@ -233,15 +397,4 @@ internal inline fun <T> Long.useManagedValue(block: (Long) -> T): T {
         }
         block(managed.pointer())
     }
-}
-
-/**
- * Extension function to check for null pointer and throw appropriate error.
- */
-internal fun Long.checkNotNull(operation: String): Long {
-    if (this == 0L) {
-        val errorMsg = FfiWrapper.getErrorMessage() ?: "Unknown error"
-        throw GblnError.NullPointer("$operation failed: $errorMsg")
-    }
-    return this
 }

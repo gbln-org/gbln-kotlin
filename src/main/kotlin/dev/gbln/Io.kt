@@ -50,12 +50,7 @@ object Io {
             throw GblnError.PermissionDenied(path)
         }
 
-        val ptr = FfiWrapper.parseFile(path)
-
-        if (ptr == 0L) {
-            val errorMsg = FfiWrapper.getErrorMessage() ?: "Failed to read file"
-            throw GblnError.IoError(errorMsg)
-        }
+        val ptr = FfiHelpers.parseFile(path)
 
         return ManagedValue(ptr).use { managed ->
             ValueConversion.fromGbln(managed.pointer())
@@ -91,11 +86,11 @@ object Io {
         }
 
         ValueConversion.toGbln(value).use { managed ->
-            val result = FfiWrapper.writeFile(path, managed.pointer())
+            val errorCode = FfiWrapper.gblnWriteFile(path, managed.pointer())
 
-            if (result != 0) {
-                val errorMsg = FfiWrapper.getErrorMessage() ?: "Failed to write file"
-                throw GblnError.IoError(errorMsg)
+            if (errorCode != FfiWrapper.ErrorCode.OK) {
+                val errorMsg = FfiWrapper.gblnErrorMessage(errorCode)
+                throw GblnError.IoError("Failed to write file '$path': $errorMsg")
             }
         }
     }

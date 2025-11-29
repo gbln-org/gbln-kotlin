@@ -23,186 +23,87 @@
 extern "C" {
 #endif
 
-// Parser functions
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_parse(
-    JNIEnv* env, jobject obj, jstring input);
+// Package: dev.gbln.FfiWrapper
 
-// Serialiser functions
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_toString(
+// Parse
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnParse(
+    JNIEnv* env, jobject obj, jstring input, jlongArray outValue);
+
+// Memory
+JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_gblnValueFree(
     JNIEnv* env, jobject obj, jlong valuePtr);
 
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_toPrettyString(
+JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_gblnStringFree(
+    JNIEnv* env, jobject obj, jlong stringPtr);
+
+// Serialise
+JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_gblnToString(
     JNIEnv* env, jobject obj, jlong valuePtr);
 
-// Value creation functions
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI8(
-    JNIEnv* env, jobject obj, jbyte value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI16(
-    JNIEnv* env, jobject obj, jshort value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI32(
-    JNIEnv* env, jobject obj, jint value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI64(
-    JNIEnv* env, jobject obj, jlong value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU8(
-    JNIEnv* env, jobject obj, jshort value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU16(
-    JNIEnv* env, jobject obj, jint value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU32(
-    JNIEnv* env, jobject obj, jlong value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU64(
-    JNIEnv* env, jobject obj, jlong value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewF32(
-    JNIEnv* env, jobject obj, jfloat value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewF64(
-    JNIEnv* env, jobject obj, jdouble value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewBool(
-    JNIEnv* env, jobject obj, jboolean value);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewString(
-    JNIEnv* env, jobject obj, jstring value, jint maxLen);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewNull(
-    JNIEnv* env, jobject obj);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewObject(
-    JNIEnv* env, jobject obj);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewArray(
-    JNIEnv* env, jobject obj);
-
-// Value type checking functions
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI8(
+JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_gblnToStringPretty(
     JNIEnv* env, jobject obj, jlong valuePtr);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI16(
+// Type query
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnValueType(
     JNIEnv* env, jobject obj, jlong valuePtr);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI32(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+// Value getters (with ok flag)
+JNIEXPORT jbyte JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI8(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI64(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI16(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU8(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI32(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU16(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI64(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU32(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU8(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU64(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU16(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsF32(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU32(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsF64(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU64(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsBool(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jfloat JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsF32(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsString(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jdouble JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsF64(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsNull(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsString(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsObject(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsArray(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-// Value getter functions
-JNIEXPORT jbyte JNICALL Java_dev_gbln_FfiWrapper_valueAsI8(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_valueAsI16(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_valueAsI32(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueAsI64(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_valueAsU8(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_valueAsU16(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueAsU32(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueAsU64(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jfloat JNICALL Java_dev_gbln_FfiWrapper_valueAsF32(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jdouble JNICALL Java_dev_gbln_FfiWrapper_valueAsF64(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueAsBool(
-    JNIEnv* env, jobject obj, jlong valuePtr);
-
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_valueAsString(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsBool(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok);
 
 // Object operations
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_objectSet(
-    JNIEnv* env, jobject obj, jlong objectPtr, jstring key, jlong valuePtr);
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_objectGet(
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnObjectGet(
     JNIEnv* env, jobject obj, jlong objectPtr, jstring key);
 
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_objectLen(
-    JNIEnv* env, jobject obj, jlong objectPtr);
-
-JNIEXPORT jobjectArray JNICALL Java_dev_gbln_FfiWrapper_objectKeys(
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnObjectLen(
     JNIEnv* env, jobject obj, jlong objectPtr);
 
 // Array operations
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_arrayPush(
-    JNIEnv* env, jobject obj, jlong arrayPtr, jlong valuePtr);
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnArrayGet(
+    JNIEnv* env, jobject obj, jlong arrayPtr, jlong index);
 
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_arrayGet(
-    JNIEnv* env, jobject obj, jlong arrayPtr, jint index);
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_arrayLen(
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnArrayLen(
     JNIEnv* env, jobject obj, jlong arrayPtr);
 
-// Memory management
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_valueFree(
-    JNIEnv* env, jobject obj, jlong valuePtr);
+// I/O
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnReadIo(
+    JNIEnv* env, jobject obj, jstring path, jlongArray outValue);
 
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_stringFree(
-    JNIEnv* env, jobject obj, jlong stringPtr);
-
-// Error handling
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_getErrorMessage(
-    JNIEnv* env, jobject obj);
-
-// I/O operations
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_parseFile(
-    JNIEnv* env, jobject obj, jstring path);
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_writeFile(
-    JNIEnv* env, jobject obj, jstring path, jlong valuePtr);
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnWriteIo(
+    JNIEnv* env, jobject obj, jlong valuePtr, jstring path);
 
 #ifdef __cplusplus
 }

@@ -39,8 +39,7 @@ object Serialiser {
      */
     fun toString(value: Any?, config: GblnConfig = GblnConfig.DEFAULT): String {
         return ValueConversion.toGbln(value).use { managed ->
-            val result = FfiWrapper.toString(managed.pointer())
-            result ?: throw GblnError.SerialisationError("Failed to serialise value")
+            FfiHelpers.serialise(managed.pointer())
         }
     }
 
@@ -57,8 +56,7 @@ object Serialiser {
      */
     fun toPrettyString(value: Any?, config: GblnConfig = GblnConfig.DEFAULT): String {
         return ValueConversion.toGbln(value).use { managed ->
-            val result = FfiWrapper.toPrettyString(managed.pointer())
-            result ?: throw GblnError.SerialisationError("Failed to serialise value")
+            FfiHelpers.serialisePretty(managed.pointer())
         }
     }
 

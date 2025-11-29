@@ -15,532 +15,312 @@
  */
 
 #include "gbln_jni.h"
-#include "gbln.h"
 #include <cstring>
-#include <vector>
 
-// Helper function to convert jstring to C string
-static const char* jstringToC(JNIEnv* env, jstring jstr) {
-    if (!jstr) return nullptr;
-    return env->GetStringUTFChars(jstr, nullptr);
+extern "C" {
+    #include "gbln.h"
 }
 
-// Helper function to release C string
-static void releaseJString(JNIEnv* env, jstring jstr, const char* cstr) {
-    if (jstr && cstr) {
-        env->ReleaseStringUTFChars(jstr, cstr);
+// Parse GBLN string
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnParse(
+    JNIEnv* env, jobject obj, jstring input, jlongArray outValue) {
+    
+    const char* cInput = env->GetStringUTFChars(input, nullptr);
+    if (!cInput) return -1;
+    
+    struct GblnValue* value = nullptr;
+    enum GblnErrorCode result = gbln_parse(cInput, &value);
+    
+    env->ReleaseStringUTFChars(input, cInput);
+    
+    if (result == Ok && value) {
+        jlong ptr = reinterpret_cast<jlong>(value);
+        env->SetLongArrayRegion(outValue, 0, 1, &ptr);
+    }
+    
+    return static_cast<jint>(result);
+}
+
+// Free value
+JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_gblnValueFree(
+    JNIEnv* env, jobject obj, jlong valuePtr) {
+    
+    if (valuePtr != 0) {
+        gbln_value_free(reinterpret_cast<struct GblnValue*>(valuePtr));
     }
 }
 
-// Helper function to create Java string
-static jstring createJString(JNIEnv* env, const char* cstr) {
-    if (!cstr) return nullptr;
-    return env->NewStringUTF(cstr);
-}
-
-// Parser functions
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_parse(
-    JNIEnv* env, jobject obj, jstring input) {
+// Free string
+JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_gblnStringFree(
+    JNIEnv* env, jobject obj, jlong stringPtr) {
     
-    const char* cInput = jstringToC(env, input);
-    if (!cInput) return 0;
-    
-    GblnValue* value = nullptr;
-    GblnResult result = gbln_parse(cInput, &value);
-    
-    releaseJString(env, input, cInput);
-    
-    if (result != GBLN_OK) {
-        return 0;
+    if (stringPtr != 0) {
+        free(reinterpret_cast<char*>(stringPtr));
     }
-    
-    return reinterpret_cast<jlong>(value);
 }
 
-// Serialiser functions
-
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_toString(
+// Serialise to string
+JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_gblnToString(
     JNIEnv* env, jobject obj, jlong valuePtr) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    if (!value) return nullptr;
+    if (valuePtr == 0) return nullptr;
     
-    const char* result = gbln_to_string(value);
-    if (!result) return nullptr;
+    char* str = gbln_to_string(reinterpret_cast<const struct GblnValue*>(valuePtr));
+    if (!str) return nullptr;
     
-    jstring jResult = createJString(env, result);
-    gbln_string_free(const_cast<char*>(result));
-    
-    return jResult;
+    jstring result = env->NewStringUTF(str);
+    free(str);
+    return result;
 }
 
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_toPrettyString(
+// Serialise to pretty string
+JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_gblnToStringPretty(
     JNIEnv* env, jobject obj, jlong valuePtr) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    if (!value) return nullptr;
+    if (valuePtr == 0) return nullptr;
     
-    const char* result = gbln_to_pretty_string(value);
-    if (!result) return nullptr;
+    char* str = gbln_to_string_pretty(reinterpret_cast<const struct GblnValue*>(valuePtr));
+    if (!str) return nullptr;
     
-    jstring jResult = createJString(env, result);
-    gbln_string_free(const_cast<char*>(result));
-    
-    return jResult;
+    jstring result = env->NewStringUTF(str);
+    free(str);
+    return result;
 }
 
-// Value creation functions
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI8(
-    JNIEnv* env, jobject obj, jbyte value) {
-    
-    GblnValue* result = gbln_value_new_i8(static_cast<int8_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI16(
-    JNIEnv* env, jobject obj, jshort value) {
-    
-    GblnValue* result = gbln_value_new_i16(static_cast<int16_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI32(
-    JNIEnv* env, jobject obj, jint value) {
-    
-    GblnValue* result = gbln_value_new_i32(static_cast<int32_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewI64(
-    JNIEnv* env, jobject obj, jlong value) {
-    
-    GblnValue* result = gbln_value_new_i64(static_cast<int64_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU8(
-    JNIEnv* env, jobject obj, jshort value) {
-    
-    GblnValue* result = gbln_value_new_u8(static_cast<uint8_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU16(
-    JNIEnv* env, jobject obj, jint value) {
-    
-    GblnValue* result = gbln_value_new_u16(static_cast<uint16_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU32(
-    JNIEnv* env, jobject obj, jlong value) {
-    
-    GblnValue* result = gbln_value_new_u32(static_cast<uint32_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewU64(
-    JNIEnv* env, jobject obj, jlong value) {
-    
-    GblnValue* result = gbln_value_new_u64(static_cast<uint64_t>(value));
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewF32(
-    JNIEnv* env, jobject obj, jfloat value) {
-    
-    GblnValue* result = gbln_value_new_f32(value);
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewF64(
-    JNIEnv* env, jobject obj, jdouble value) {
-    
-    GblnValue* result = gbln_value_new_f64(value);
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewBool(
-    JNIEnv* env, jobject obj, jboolean value) {
-    
-    GblnValue* result = gbln_value_new_bool(value ? 1 : 0);
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewString(
-    JNIEnv* env, jobject obj, jstring value, jint maxLen) {
-    
-    const char* cValue = jstringToC(env, value);
-    if (!cValue) return 0;
-    
-    GblnValue* result = gbln_value_new_string(cValue, static_cast<size_t>(maxLen));
-    
-    releaseJString(env, value, cValue);
-    
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewNull(
-    JNIEnv* env, jobject obj) {
-    
-    GblnValue* result = gbln_value_new_null();
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewObject(
-    JNIEnv* env, jobject obj) {
-    
-    GblnValue* result = gbln_value_new_object();
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueNewArray(
-    JNIEnv* env, jobject obj) {
-    
-    GblnValue* result = gbln_value_new_array();
-    return reinterpret_cast<jlong>(result);
-}
-
-// Value type checking functions
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI8(
+// Get value type
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnValueType(
     JNIEnv* env, jobject obj, jlong valuePtr) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_i8(value) ? JNI_TRUE : JNI_FALSE;
+    if (valuePtr == 0) return -1;
+    
+    return static_cast<jint>(gbln_value_type(reinterpret_cast<const struct GblnValue*>(valuePtr)));
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI16(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+// Value getters with ok flag
+
+JNIEXPORT jbyte JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI8(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_i16(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    int8_t result = gbln_value_as_i8(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jbyte>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI32(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI16(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_i32(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    int16_t result = gbln_value_as_i16(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jshort>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsI64(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI32(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_i64(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    int32_t result = gbln_value_as_i32(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jint>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU8(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsI64(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_u8(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    int64_t result = gbln_value_as_i64(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jlong>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU16(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU8(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_u16(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    uint8_t result = gbln_value_as_u8(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jshort>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU32(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU16(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_u32(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    uint16_t result = gbln_value_as_u16(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jint>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsU64(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU32(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_u64(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    uint32_t result = gbln_value_as_u32(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jlong>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsF32(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsU64(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_f32(value) ? JNI_TRUE : JNI_FALSE;
+    bool cOk = false;
+    uint64_t result = gbln_value_as_u64(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return static_cast<jlong>(result);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsF64(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+JNIEXPORT jfloat JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsF32(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_f64(value) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsBool(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
+    bool cOk = false;
+    float result = gbln_value_as_f32(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
     
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_bool(value) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsString(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_string(value) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsNull(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_null(value) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsObject(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_object(value) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueIsArray(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_is_array(value) ? JNI_TRUE : JNI_FALSE;
-}
-
-// Value getter functions
-
-JNIEXPORT jbyte JNICALL Java_dev_gbln_FfiWrapper_valueAsI8(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jbyte>(gbln_value_as_i8(value));
-}
-
-JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_valueAsI16(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jshort>(gbln_value_as_i16(value));
-}
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_valueAsI32(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jint>(gbln_value_as_i32(value));
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueAsI64(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jlong>(gbln_value_as_i64(value));
-}
-
-JNIEXPORT jshort JNICALL Java_dev_gbln_FfiWrapper_valueAsU8(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jshort>(gbln_value_as_u8(value));
-}
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_valueAsU16(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jint>(gbln_value_as_u16(value));
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueAsU32(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jlong>(gbln_value_as_u32(value));
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_valueAsU64(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return static_cast<jlong>(gbln_value_as_u64(value));
-}
-
-JNIEXPORT jfloat JNICALL Java_dev_gbln_FfiWrapper_valueAsF32(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_as_f32(value);
-}
-
-JNIEXPORT jdouble JNICALL Java_dev_gbln_FfiWrapper_valueAsF64(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_as_f64(value);
-}
-
-JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_valueAsBool(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    return gbln_value_as_bool(value) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_valueAsString(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    const char* result = gbln_value_as_string(value);
-    
-    return createJString(env, result);
-}
-
-// Object operations
-
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_objectSet(
-    JNIEnv* env, jobject obj, jlong objectPtr, jstring key, jlong valuePtr) {
-    
-    GblnValue* object = reinterpret_cast<GblnValue*>(objectPtr);
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    
-    const char* cKey = jstringToC(env, key);
-    if (!cKey) return;
-    
-    gbln_object_set(object, cKey, value);
-    
-    releaseJString(env, key, cKey);
-}
-
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_objectGet(
-    JNIEnv* env, jobject obj, jlong objectPtr, jstring key) {
-    
-    GblnValue* object = reinterpret_cast<GblnValue*>(objectPtr);
-    
-    const char* cKey = jstringToC(env, key);
-    if (!cKey) return 0;
-    
-    GblnValue* result = gbln_object_get(object, cKey);
-    
-    releaseJString(env, key, cKey);
-    
-    return reinterpret_cast<jlong>(result);
-}
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_objectLen(
-    JNIEnv* env, jobject obj, jlong objectPtr) {
-    
-    GblnValue* object = reinterpret_cast<GblnValue*>(objectPtr);
-    return static_cast<jint>(gbln_object_len(object));
-}
-
-JNIEXPORT jobjectArray JNICALL Java_dev_gbln_FfiWrapper_objectKeys(
-    JNIEnv* env, jobject obj, jlong objectPtr) {
-    
-    GblnValue* object = reinterpret_cast<GblnValue*>(objectPtr);
-    
-    size_t len = gbln_object_len(object);
-    const char** keys = gbln_object_keys(object);
-    
-    jclass stringClass = env->FindClass("java/lang/String");
-    jobjectArray result = env->NewObjectArray(static_cast<jsize>(len), stringClass, nullptr);
-    
-    for (size_t i = 0; i < len; i++) {
-        jstring jKey = createJString(env, keys[i]);
-        env->SetObjectArrayElement(result, static_cast<jsize>(i), jKey);
-        env->DeleteLocalRef(jKey);
-    }
-    
-    gbln_keys_free(keys, len);
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
     
     return result;
 }
 
-// Array operations
-
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_arrayPush(
-    JNIEnv* env, jobject obj, jlong arrayPtr, jlong valuePtr) {
+JNIEXPORT jdouble JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsF64(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* array = reinterpret_cast<GblnValue*>(arrayPtr);
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
+    bool cOk = false;
+    double result = gbln_value_as_f64(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
     
-    gbln_array_push(array, value);
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return result;
 }
 
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_arrayGet(
-    JNIEnv* env, jobject obj, jlong arrayPtr, jint index) {
+JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsString(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
     
-    GblnValue* array = reinterpret_cast<GblnValue*>(arrayPtr);
-    GblnValue* result = gbln_array_get(array, static_cast<size_t>(index));
+    bool cOk = false;
+    char* str = gbln_value_as_string(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    if (!str) return nullptr;
+    
+    jstring result = env->NewStringUTF(str);
+    free(str);
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL Java_dev_gbln_FfiWrapper_gblnValueAsBool(
+    JNIEnv* env, jobject obj, jlong valuePtr, jbooleanArray ok) {
+    
+    bool cOk = false;
+    bool result = gbln_value_as_bool(reinterpret_cast<const struct GblnValue*>(valuePtr), &cOk);
+    
+    jboolean jOk = cOk ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(ok, 0, 1, &jOk);
+    
+    return result ? JNI_TRUE : JNI_FALSE;
+}
+
+// Object operations
+
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnObjectGet(
+    JNIEnv* env, jobject obj, jlong objectPtr, jstring key) {
+    
+    const char* cKey = env->GetStringUTFChars(key, nullptr);
+    if (!cKey) return 0;
+    
+    const struct GblnValue* result = gbln_object_get(
+        reinterpret_cast<const struct GblnValue*>(objectPtr), cKey);
+    
+    env->ReleaseStringUTFChars(key, cKey);
     
     return reinterpret_cast<jlong>(result);
 }
 
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_arrayLen(
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnObjectLen(
+    JNIEnv* env, jobject obj, jlong objectPtr) {
+    
+    return static_cast<jlong>(
+        gbln_object_len(reinterpret_cast<const struct GblnValue*>(objectPtr)));
+}
+
+// Array operations
+
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnArrayGet(
+    JNIEnv* env, jobject obj, jlong arrayPtr, jlong index) {
+    
+    const struct GblnValue* result = gbln_array_get(
+        reinterpret_cast<const struct GblnValue*>(arrayPtr),
+        static_cast<uintptr_t>(index));
+    
+    return reinterpret_cast<jlong>(result);
+}
+
+JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_gblnArrayLen(
     JNIEnv* env, jobject obj, jlong arrayPtr) {
     
-    GblnValue* array = reinterpret_cast<GblnValue*>(arrayPtr);
-    return static_cast<jint>(gbln_array_len(array));
-}
-
-// Memory management
-
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_valueFree(
-    JNIEnv* env, jobject obj, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    gbln_value_free(value);
-}
-
-JNIEXPORT void JNICALL Java_dev_gbln_FfiWrapper_stringFree(
-    JNIEnv* env, jobject obj, jlong stringPtr) {
-    
-    char* str = reinterpret_cast<char*>(stringPtr);
-    gbln_string_free(str);
-}
-
-// Error handling
-
-JNIEXPORT jstring JNICALL Java_dev_gbln_FfiWrapper_getErrorMessage(
-    JNIEnv* env, jobject obj) {
-    
-    const char* error = gbln_get_error_message();
-    return createJString(env, error);
+    return static_cast<jlong>(
+        gbln_array_len(reinterpret_cast<const struct GblnValue*>(arrayPtr)));
 }
 
 // I/O operations
 
-JNIEXPORT jlong JNICALL Java_dev_gbln_FfiWrapper_parseFile(
-    JNIEnv* env, jobject obj, jstring path) {
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnReadIo(
+    JNIEnv* env, jobject obj, jstring path, jlongArray outValue) {
     
-    const char* cPath = jstringToC(env, path);
-    if (!cPath) return 0;
-    
-    GblnValue* value = nullptr;
-    GblnResult result = gbln_parse_file(cPath, &value);
-    
-    releaseJString(env, path, cPath);
-    
-    if (result != GBLN_OK) {
-        return 0;
-    }
-    
-    return reinterpret_cast<jlong>(value);
-}
-
-JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_writeFile(
-    JNIEnv* env, jobject obj, jstring path, jlong valuePtr) {
-    
-    GblnValue* value = reinterpret_cast<GblnValue*>(valuePtr);
-    
-    const char* cPath = jstringToC(env, path);
+    const char* cPath = env->GetStringUTFChars(path, nullptr);
     if (!cPath) return -1;
     
-    GblnResult result = gbln_write_file(cPath, value);
+    struct GblnValue* value = nullptr;
+    enum GblnErrorCode result = gbln_read_io(cPath, &value);
     
-    releaseJString(env, path, cPath);
+    env->ReleaseStringUTFChars(path, cPath);
+    
+    if (result == Ok && value) {
+        jlong ptr = reinterpret_cast<jlong>(value);
+        env->SetLongArrayRegion(outValue, 0, 1, &ptr);
+    }
+    
+    return static_cast<jint>(result);
+}
+
+JNIEXPORT jint JNICALL Java_dev_gbln_FfiWrapper_gblnWriteIo(
+    JNIEnv* env, jobject obj, jlong valuePtr, jstring path) {
+    
+    const char* cPath = env->GetStringUTFChars(path, nullptr);
+    if (!cPath) return -1;
+    
+    enum GblnErrorCode result = gbln_write_io(
+        reinterpret_cast<const struct GblnValue*>(valuePtr),
+        cPath,
+        nullptr);  // Use default config
+    
+    env->ReleaseStringUTFChars(path, cPath);
     
     return static_cast<jint>(result);
 }
