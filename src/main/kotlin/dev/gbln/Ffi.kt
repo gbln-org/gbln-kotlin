@@ -190,14 +190,14 @@ private fun loadLibrary(): GblnLibrary {
         try {
             Native.load(libPath.toString(), GblnLibrary::class.java) as GblnLibrary
         } catch (e: UnsatisfiedLinkError) {
-            throw GblnError("Failed to load GBLN library from $libPath: ${e.message}")
+            throw IoError("Failed to load GBLN library from $libPath: ${e.message}")
         }
     } else {
         // Try system library as last resort
         try {
             Native.load("gbln", GblnLibrary::class.java) as GblnLibrary
         } catch (e: UnsatisfiedLinkError) {
-            throw GblnError(
+            throw IoError(
                 "Failed to locate GBLN library. " +
                 "Please ensure libgbln is installed or set GBLN_LIBRARY_PATH environment variable. " +
                 "Error: ${e.message}"
@@ -212,8 +212,8 @@ private fun loadLibrary(): GblnLibrary {
  */
 interface GblnLibrary : Library {
     // Parser
-    fun gbln_parse(input: String, outValue: PointerByReference): Int
-    fun gbln_parse_file(path: String, outValue: PointerByReference): Int
+    fun gbln_parse(input: String, outValue: com.sun.jna.ptr.PointerByReference): Int
+    fun gbln_parse_file(path: String, outValue: com.sun.jna.ptr.PointerByReference): Int
 
     // Serialiser
     fun gbln_to_string(value: Pointer): Pointer
@@ -243,18 +243,27 @@ interface GblnLibrary : Library {
     // Object operations
     fun gbln_object_get(obj: Pointer, key: String): Pointer
     fun gbln_object_len(obj: Pointer): Long
+    fun gbln_object_keys(obj: Pointer, outCount: com.sun.jna.ptr.LongByReference): Pointer
 
     // Array operations
     fun gbln_array_get(array: Pointer, index: Long): Pointer
     fun gbln_array_len(array: Pointer): Long
+
+    // I/O operations
+    fun gbln_read_io(path: String, outValue: com.sun.jna.ptr.PointerByReference): Int
+    fun gbln_write_io(value: Pointer, path: String, config: Pointer): Int
+
+    // Configuration
+    fun gbln_config_new(miniMode: Boolean, compress: Boolean, compressionLevel: Int, indent: Int, stripComments: Boolean): Pointer
+    fun gbln_config_new_io(): Pointer
+    fun gbln_config_free(config: Pointer)
+
+    // Error handling
+    fun gbln_last_error_message(): Pointer
+    fun gbln_string_free(str: Pointer)
 }
 
 /**
  * Global library instance (lazy-loaded).
  */
 internal val lib: GblnLibrary by lazy { loadLibrary() }
-
-/**
- * Base exception for GBLN errors.
- */
-class GblnError(message: String, cause: Throwable? = null) : Exception(message, cause)

@@ -29,13 +29,16 @@ import java.nio.file.Paths
  */
 
 /**
- * Parse GBLN string to Kotlin value.
+ * Parse GBLN string to raw managed value (low-level API).
+ *
+ * Returns a ManagedGblnValue that can be passed to writeIo() or serialised.
+ * Use parse() instead if you want automatic conversion to Kotlin types.
  *
  * @param gblnString GBLN-formatted string
- * @return Kotlin Map, List, or primitive value
- * @throws GblnError if parsing fails
+ * @return ManagedGblnValue with automatic memory cleanup
+ * @throws ParseError if parsing fails
  */
-fun parse(gblnString: String): Any? {
+fun parseRaw(gblnString: String): ManagedGblnValue {
     // Prepare output pointer
     val valuePtr = PointerByReference()
 
@@ -44,13 +47,22 @@ fun parse(gblnString: String): Any? {
 
     // Check for errors
     if (errorCode != GblnErrorCode.OK) {
-        throw GblnError("Parse failed with error code: $errorCode")
+        throw ParseError("Parse failed with error code: $errorCode")
     }
 
     // Wrap in managed value for automatic cleanup
-    val managedValue = ManagedGblnValue(valuePtr.value)
+    return ManagedGblnValue(valuePtr.value)
+}
 
-    // Convert to Kotlin
+/**
+ * Parse GBLN string to Kotlin value.
+ *
+ * @param gblnString GBLN-formatted string
+ * @return Kotlin Map, List, or primitive value
+ * @throws ParseError if parsing fails
+ */
+fun parse(gblnString: String): Any? {
+    val managedValue = parseRaw(gblnString)
     return gblnToKotlin(managedValue.ptr)
 }
 

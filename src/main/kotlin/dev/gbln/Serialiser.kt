@@ -28,21 +28,21 @@ import com.sun.jna.Pointer
 /**
  * Serialise value to GBLN string.
  *
- * @param value Pointer to GblnValue (from parse)
+ * @param value ManagedGblnValue (from parseRaw)
  * @param mini If true, use compact format (no whitespace). Default: true
  * @return GBLN-formatted string
- * @throws GblnError if serialisation fails
+ * @throws SerialiseError if serialisation fails
  */
-fun toString(value: Pointer, mini: Boolean = true): String {
+fun toString(value: ManagedGblnValue, mini: Boolean = true): String {
     // Call appropriate C function
     val cStrPtr = if (mini) {
-        lib.gbln_to_string(value)
+        lib.gbln_to_string(value.ptr)
     } else {
-        lib.gbln_to_string_pretty(value)
+        lib.gbln_to_string_pretty(value.ptr)
     }
 
     if (cStrPtr == null || Pointer.nativeValue(cStrPtr) == 0L) {
-        throw GblnError("Serialisation failed (null pointer returned)")
+        throw SerialiseError("Serialisation failed (null pointer returned)")
     }
 
     // Convert to Kotlin string
@@ -57,8 +57,8 @@ fun toString(value: Pointer, mini: Boolean = true): String {
 /**
  * Serialise value to pretty-printed GBLN string.
  *
- * @param value Pointer to GblnValue (from parse)
+ * @param value ManagedGblnValue (from parseRaw)
  * @return Pretty-printed GBLN string
- * @throws GblnError if serialisation fails
+ * @throws SerialiseError if serialisation fails
  */
-fun toStringPretty(value: Pointer): String = toString(value, mini = false)
+fun toStringPretty(value: ManagedGblnValue): String = toString(value, mini = false)

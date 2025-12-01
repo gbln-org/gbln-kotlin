@@ -1,0 +1,7 @@
+:| Simple GBLN test file
+user{
+    id<u32>(12345)
+    name<s64>(Alice)
+    age<i8>(25)
+    active<b>(t)
+}

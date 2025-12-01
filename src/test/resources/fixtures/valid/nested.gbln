@@ -1,0 +1,16 @@
+:| Nested objects
+config{
+    database{
+        host<s64>(localhost)
+        port<u16>(5432)
+        credentials{
+            username<s32>(admin)
+            password<s64>(secret123)
+        }
+    }
+    server{
+        host<s64>(0.0.0.0)
+        port<u16>(8080)
+        workers<u8>(4)
+    }
+}

@@ -63,7 +63,7 @@ class ManagedGblnValue(val ptr: Pointer) {
  */
 internal fun gblnToKotlin(value: Pointer?): Any? {
     if (value == null || Pointer.nativeValue(value) == 0L) {
-        throw GblnError("Null pointer passed to gblnToKotlin")
+        throw ValidationError("Null pointer passed to gblnToKotlin")
     }
 
     // Use gbln_value_type() for efficient type detection
@@ -79,7 +79,7 @@ internal fun gblnToKotlin(value: Pointer?): Any? {
             if (ok[0] != 0.toByte()) {
                 result != 0.toByte()
             } else {
-                throw GblnError("Failed to extract bool value")
+                throw ValidationError("Failed to extract bool value")
             }
         }
 
@@ -87,63 +87,63 @@ internal fun gblnToKotlin(value: Pointer?): Any? {
         GblnValueType.I8 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_i8(value, ok)
-            if (ok[0] != 0.toByte()) result.toInt() else throw GblnError("Failed to extract i8 value")
+            if (ok[0] != 0.toByte()) result.toInt() else throw ValidationError("Failed to extract i8 value")
         }
 
         GblnValueType.I16 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_i16(value, ok)
-            if (ok[0] != 0.toByte()) result.toInt() else throw GblnError("Failed to extract i16 value")
+            if (ok[0] != 0.toByte()) result.toInt() else throw ValidationError("Failed to extract i16 value")
         }
 
         GblnValueType.I32 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_i32(value, ok)
-            if (ok[0] != 0.toByte()) result else throw GblnError("Failed to extract i32 value")
+            if (ok[0] != 0.toByte()) result else throw ValidationError("Failed to extract i32 value")
         }
 
         GblnValueType.I64 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_i64(value, ok)
-            if (ok[0] != 0.toByte()) result else throw GblnError("Failed to extract i64 value")
+            if (ok[0] != 0.toByte()) result else throw ValidationError("Failed to extract i64 value")
         }
 
         // Unsigned integers (return as next larger signed type)
         GblnValueType.U8 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_u8(value, ok)
-            if (ok[0] != 0.toByte()) result.toInt() else throw GblnError("Failed to extract u8 value")
+            if (ok[0] != 0.toByte()) result.toInt() else throw ValidationError("Failed to extract u8 value")
         }
 
         GblnValueType.U16 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_u16(value, ok)
-            if (ok[0] != 0.toByte()) result else throw GblnError("Failed to extract u16 value")
+            if (ok[0] != 0.toByte()) result else throw ValidationError("Failed to extract u16 value")
         }
 
         GblnValueType.U32 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_u32(value, ok)
-            if (ok[0] != 0.toByte()) result else throw GblnError("Failed to extract u32 value")
+            if (ok[0] != 0.toByte()) result else throw ValidationError("Failed to extract u32 value")
         }
 
         GblnValueType.U64 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_u64(value, ok)
-            if (ok[0] != 0.toByte()) result else throw GblnError("Failed to extract u64 value")
+            if (ok[0] != 0.toByte()) result else throw ValidationError("Failed to extract u64 value")
         }
 
         // Floats
         GblnValueType.F32 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_f32(value, ok)
-            if (ok[0] != 0.toByte()) result else throw GblnError("Failed to extract f32 value")
+            if (ok[0] != 0.toByte()) result else throw ValidationError("Failed to extract f32 value")
         }
 
         GblnValueType.F64 -> {
             val ok = ByteArray(1)
             val result = lib.gbln_value_as_f64(value, ok)
-            if (ok[0] != 0.toByte()) result else throw GblnError("Failed to extract f64 value")
+            if (ok[0] != 0.toByte()) result else throw ValidationError("Failed to extract f64 value")
         }
 
         // String
@@ -158,7 +158,7 @@ internal fun gblnToKotlin(value: Pointer?): Any? {
                     ""
                 }
             } else {
-                throw GblnError("Failed to extract string value")
+                throw ValidationError("Failed to extract string value")
             }
         }
 
@@ -178,15 +178,24 @@ internal fun gblnToKotlin(value: Pointer?): Any? {
         // Object
         GblnValueType.OBJECT -> {
             val result = mutableMapOf<String, Any?>()
-            val objectLen = lib.gbln_object_len(value)
+            val countRef = com.sun.jna.ptr.LongByReference()
+            val keysPtr = lib.gbln_object_keys(value, countRef)
 
-            // For now, we can't get keys without gbln_object_keys() function
-            // This is a limitation - we need that function added to C FFI
-            // For now, return empty map
-            // TODO: Add gbln_object_keys() to C FFI and implement properly
+            if (keysPtr != null && Pointer.nativeValue(keysPtr) != 0L) {
+                val count = countRef.value.toInt()
+                val keys = keysPtr.getStringArray(0, count)
+
+                for (key in keys) {
+                    val fieldValue = lib.gbln_object_get(value, key)
+                    if (fieldValue != null && Pointer.nativeValue(fieldValue) != 0L) {
+                        result[key] = gblnToKotlin(fieldValue)
+                    }
+                }
+            }
+
             result
         }
 
-        else -> throw GblnError("Unknown value type: $valueType")
+        else -> throw ValidationError("Unknown value type: $valueType")
     }
 }
